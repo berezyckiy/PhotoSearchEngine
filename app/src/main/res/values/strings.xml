@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">PhotoSearchEngine</string>
+    <string name="title_photo">Photo</string>
+    <string name="title_map">Map</string>
+    <string name="action_search">Search</string>
+    <string name="action_search_hint">Search by key word</string>
+    <string name="recent_tab_title">Recent</string>
+    <string name="found_tab_title">Found</string>
+
+    <string name="google_maps_api_key">AIzaSyDpRJ4z3X8BLXjlEjaPqD6HnOgXag1NrVc</string>
+</resources>
