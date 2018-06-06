@@ -37,7 +37,6 @@ public class MapPresenter extends BasePresenter<MapContract.View>
         //smth wrong
     }
 
-
     @Override
     public void onDestroy() {
         mService = null;

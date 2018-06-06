@@ -2,14 +2,14 @@ package govin.maxim.photosearchengine.base;
 
 import govin.maxim.photosearchengine.model.PhotosResponse;
 
-public class MainContract {
+public interface MainContract {
 
-    public interface View extends MvpView {
+    interface View extends MvpView {
 
         void showPhotos(PhotosResponse photosResponse);
     }
 
-    public interface Presenter extends MvpPresenter<View> {
+    interface Presenter extends MvpPresenter<View> {
 
         void getRecent(int pageSize, int pageCount);
 
