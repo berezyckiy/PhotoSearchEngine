@@ -23,7 +23,7 @@ import govin.maxim.photosearchengine.model.PhotosResponse;
 import govin.maxim.photosearchengine.presenter.MainPresenter;
 
 public class MainActivity extends AppCompatActivity
-        implements MainContract.View, PhotosListFragment.OnPhotosListFragmentListener, GoogleMapsFragment.OnGoogleMapsFragmentListener {
+        implements MainContract.View, PhotosListFragment.OnPhotosListFragmentListener {
 
     private final static String TAG_PHOTOS_TAB = "PhotosTab";
 

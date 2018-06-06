@@ -8,7 +8,8 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class MainPresenter extends BasePresenter<MainContract.View> implements MainContract.Presenter {
+public class MainPresenter extends BasePresenter<MainContract.View>
+        implements MainContract.Presenter {
 
     @Override
     public void getRecent(int pageSize, int pageCount) {
@@ -50,5 +51,9 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
                 getView().showMessage(t.getMessage());
             }
         });
+    }
+
+    @Override
+    public void onDestroy() {
     }
 }

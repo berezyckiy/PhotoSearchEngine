@@ -7,4 +7,6 @@ public interface MvpPresenter<V extends MvpView> {
     void detachView();
 
     V getView();
+
+    void onDestroy();
 }
