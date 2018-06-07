@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
@@ -34,6 +35,8 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +46,10 @@ import govin.maxim.photosearchengine.base.MapContract;
 import govin.maxim.photosearchengine.model.MapPojo;
 import govin.maxim.photosearchengine.model.Photo;
 import govin.maxim.photosearchengine.model.api.Service;
+import govin.maxim.photosearchengine.model.directions.DirectionResponse;
+import govin.maxim.photosearchengine.model.directions.Leg;
+import govin.maxim.photosearchengine.model.directions.Route;
+import govin.maxim.photosearchengine.model.directions.Step;
 import govin.maxim.photosearchengine.model.distance_matrix.DistanceMatrix;
 import govin.maxim.photosearchengine.presenter.MapPresenter;
 import govin.maxim.photosearchengine.service.MyJobService;
@@ -71,6 +78,7 @@ public class GoogleMapsFragment extends Fragment
     private LatLng mCurrentLocation;
     private List<MarkerOptions> mMarkersList;
     private LatLngBounds.Builder mBoundsBuilder;
+    private Polyline mPolyLineDirection;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -245,6 +253,11 @@ public class GoogleMapsFragment extends Fragment
 
     @Override
     public boolean onMarkerClick(Marker marker) {
+        if (mCurrentLocation != null) {
+            final String origins = mCurrentLocation.latitude + "," + mCurrentLocation.longitude;
+            mPresenter.getDirections(origins, marker.getPosition().latitude
+                    + "," + marker.getPosition().longitude);
+        }
         return false;
     }
 
@@ -264,7 +277,35 @@ public class GoogleMapsFragment extends Fragment
     }
 
     @Override
+    public void showDirections(DirectionResponse response) {
+        List<LatLng> latLngList = new ArrayList<>();
+        for (Route route : response.getRoutes()) {
+            for (Leg leg : route.getLegs()) {
+                for (Step step : leg.getSteps()) {
+                    latLngList.add(new LatLng(step.getStartLocation().getLat(), step.getStartLocation().getLng()));
+                    latLngList.add(new LatLng(step.getEndLocation().getLat(), step.getEndLocation().getLng()));
+                }
+            }
+        }
+        PolylineOptions polylineOptions = new PolylineOptions()
+                .addAll(latLngList)
+                .color(Color.BLUE)
+                .geodesic(true);
+
+        addDirectionOnMap(polylineOptions);
+    }
+
+    private void addDirectionOnMap(PolylineOptions polylineOptions) {
+        if (mPolyLineDirection != null) {
+            mPolyLineDirection.remove();
+        }
+
+        mPolyLineDirection = mMap.addPolyline(polylineOptions);
+    }
+
+    @Override
     public void showMessage(String message) {
+        Snackbar.make(getView(), message, Snackbar.LENGTH_SHORT).show();
     }
 
     @Override

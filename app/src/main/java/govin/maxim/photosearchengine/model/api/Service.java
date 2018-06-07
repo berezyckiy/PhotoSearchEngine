@@ -3,6 +3,7 @@ package govin.maxim.photosearchengine.model.api;
 import android.support.annotation.NonNull;
 
 import govin.maxim.photosearchengine.model.PhotosResponse;
+import govin.maxim.photosearchengine.model.directions.DirectionResponse;
 import govin.maxim.photosearchengine.model.distance_matrix.DistanceMatrix;
 import retrofit2.Call;
 import retrofit2.Retrofit;
@@ -16,7 +17,7 @@ public class Service
     private static final String GOOGLE_BASE_URL = "https://maps.googleapis.com/";
 
     private FlickrApi mFlickCalls;
-    private GoogleDistanceApi mGoogleDistance;
+    private GoogleDistanceApi mGoogleMapsApi;
 
     @Override
     public Call<PhotosResponse> getRecent(int pageSize, int pageCount) {
@@ -37,10 +38,18 @@ public class Service
 
     @Override
     public Call<DistanceMatrix> getDistanceMatrix(@NonNull String origins, @NonNull String destinations) {
-        if (mGoogleDistance == null) {
-            mGoogleDistance = buildGoogleDistance();
+        if (mGoogleMapsApi == null) {
+            mGoogleMapsApi = buildGoogleMapsApi();
         }
-        return mGoogleDistance.getDistanceMatrix(origins, destinations);
+        return mGoogleMapsApi.getDistanceMatrix(origins, destinations);
+    }
+
+    @Override
+    public Call<DirectionResponse> getDirections(@NonNull String origin, @NonNull String destination) {
+        if (mGoogleMapsApi == null) {
+            mGoogleMapsApi = buildGoogleMapsApi();
+        }
+        return mGoogleMapsApi.getDirections(origin, destination);
     }
 
     private FlickrApi buildFlickrService() {
@@ -52,7 +61,7 @@ public class Service
         return retrofit.create(FlickrApi.class);
     }
 
-    private GoogleDistanceApi buildGoogleDistance() {
+    private GoogleDistanceApi buildGoogleMapsApi() {
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(GOOGLE_BASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
