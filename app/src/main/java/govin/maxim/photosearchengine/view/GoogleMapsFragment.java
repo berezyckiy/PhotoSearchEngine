@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.location.Criteria;
 import android.location.Location;
@@ -37,15 +38,21 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.maps.android.clustering.Cluster;
+import com.google.maps.android.clustering.ClusterManager;
+import com.google.maps.android.clustering.view.DefaultClusterRenderer;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import govin.maxim.photosearchengine.R;
 import govin.maxim.photosearchengine.base.MapContract;
 import govin.maxim.photosearchengine.model.MapPojo;
 import govin.maxim.photosearchengine.model.Photo;
 import govin.maxim.photosearchengine.model.api.Service;
+import govin.maxim.photosearchengine.model.clustering_marker.MarkerItem;
 import govin.maxim.photosearchengine.model.directions.DirectionResponse;
 import govin.maxim.photosearchengine.model.directions.Leg;
 import govin.maxim.photosearchengine.model.directions.Route;
@@ -62,8 +69,8 @@ public class GoogleMapsFragment extends Fragment
         ActivityCompat.OnRequestPermissionsResultCallback,
         GoogleMap.OnMyLocationButtonClickListener,
         GoogleMap.OnMyLocationClickListener,
-        GoogleMap.OnInfoWindowClickListener,
-        GoogleMap.OnMarkerClickListener {
+        ClusterManager.OnClusterItemClickListener<MarkerItem>,
+        ClusterManager.OnClusterItemInfoWindowClickListener<MarkerItem> {
 
     private static final String EMPTY_TITLE_REPLACEMENT = "No title";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
@@ -76,9 +83,8 @@ public class GoogleMapsFragment extends Fragment
     private GoogleMap mMap;
     private List<MapPojo> mMapPojos = new ArrayList<>();
     private LatLng mCurrentLocation;
-    private List<MarkerOptions> mMarkersList;
-    private LatLngBounds.Builder mBoundsBuilder;
     private Polyline mPolyLineDirection;
+    private ClusterManager<MarkerItem> mClusterManager;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -125,8 +131,9 @@ public class GoogleMapsFragment extends Fragment
     }
 
     public void setCurrentlyPhotosList(List<Photo> photoList) {
+        mMapPojos.clear();
         sortWithGeoOnly(photoList);
-        showPhotoWithGeo(mMapPojos);
+        showPhotoWithGeo();
     }
 
     public void clearMarkers() {
@@ -139,29 +146,17 @@ public class GoogleMapsFragment extends Fragment
             if (photo.getLatitude() != 0 && photo.getLongitude() != 0) {
                 MapPojo mapPojo = new MapPojo(photo.getTitle(), photo.getLatitude(),
                         photo.getLongitude(), photo.getUrlN());
-                if (!mMapPojos.contains(mapPojo)) {
-                    mMapPojos.add(mapPojo);
-                }
+                mMapPojos.add(mapPojo);
             }
         }
     }
 
-    private void showPhotoWithGeo(List<MapPojo> mapPojos) {
-        mMarkersList = new ArrayList<>();
-        mBoundsBuilder = new LatLngBounds.Builder();
-        StringBuilder destinations = new StringBuilder();
+    private void showPhotoWithGeo() {
+        final StringBuilder destinations = new StringBuilder();
         boolean isSomeoneHasLatLng = false;
-        for (MapPojo pojo : mapPojos) {
-            final LatLng latLng = new LatLng(pojo.getLatitude(), pojo.getLongitude());
-            final String title = String.valueOf(simplifyEmptyTitle(pojo.getTitle()));
-            mBoundsBuilder.include(latLng);
+        for (MapPojo pojo : mMapPojos) {
             isSomeoneHasLatLng = true;
             destinations.append(pojo.getLatitude()).append(",").append(pojo.getLongitude()).append("|");
-            mMarkersList.add(new MarkerOptions()
-                    .position(latLng)
-                    .title(title)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
-            );
         }
         if (isSomeoneHasLatLng && mCurrentLocation != null) {
             final String origins = mCurrentLocation.latitude + "," + mCurrentLocation.longitude;
@@ -191,6 +186,31 @@ public class GoogleMapsFragment extends Fragment
         return false;
     }
 
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        mMap = googleMap;
+
+        initClusterManager();
+        initGoogleMap();
+        enableMyLocation();
+    }
+
+    private void initClusterManager() {
+        mClusterManager = new ClusterManager<>(getContext(), mMap);
+        mClusterManager.setRenderer(new MyRender(getContext(), mMap, mClusterManager));
+        mClusterManager.setOnClusterItemClickListener(this);
+        mClusterManager.setOnClusterItemInfoWindowClickListener(this);
+    }
+
+    private void initGoogleMap() {
+        mMap.setOnCameraIdleListener(mClusterManager);
+        mMap.setOnMarkerClickListener(mClusterManager);
+        mMap.setOnInfoWindowClickListener(mClusterManager);
+        mMap.setOnMyLocationButtonClickListener(this);
+        mMap.setOnMyLocationClickListener(this);
+        mMap.setInfoWindowAdapter(new CustomInfoAdapter());
+    }
+
     private void enableMyLocation() {
         if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -214,19 +234,6 @@ public class GoogleMapsFragment extends Fragment
         }
     }
 
-    @Override
-    public void onMapReady(GoogleMap googleMap) {
-        mMap = googleMap;
-
-        mMap.setOnMyLocationButtonClickListener(this);
-        mMap.setOnMyLocationClickListener(this);
-        mMap.setOnInfoWindowClickListener(this);
-        mMap.setOnMarkerClickListener(this);
-        mMap.setInfoWindowAdapter(new CustomInfoAdapter());
-
-        enableMyLocation();
-    }
-
     private String simplifyEmptyTitle(String target) {
         if (target.isEmpty()) {
             return EMPTY_TITLE_REPLACEMENT;
@@ -247,33 +254,29 @@ public class GoogleMapsFragment extends Fragment
     }
 
     @Override
-    public void onInfoWindowClick(Marker marker) {
-        Snackbar.make(getView(), "Info window clicked", Snackbar.LENGTH_SHORT).show();
-    }
-
-    @Override
-    public boolean onMarkerClick(Marker marker) {
-        if (mCurrentLocation != null) {
-            final String origins = mCurrentLocation.latitude + "," + mCurrentLocation.longitude;
-            mPresenter.getDirections(origins, marker.getPosition().latitude
-                    + "," + marker.getPosition().longitude);
-        }
-        return false;
-    }
-
-    @Override
     public void showDistanceMatrix(@NonNull DistanceMatrix response) {
+        LatLngBounds.Builder mBoundsBuilder = new LatLngBounds.Builder();
         String snippet = "Empty";
+        mClusterManager.clearItems();
         for (int i = 0; i < response.getDestinationAddresses().size(); i++) {
             if (response.getRows().get(0).getElements().get(i).getDistance() != null &&
                     response.getRows().get(0).getElements().get(i).getDuration() != null) {
                 snippet = response.getRows().get(0).getElements().get(i).getDistance().getText() +
                         "\n" + response.getRows().get(0).getElements().get(i).getDuration().getText();
             }
-            mMarkersList.get(i).snippet(snippet);
-            mMap.addMarker(mMarkersList.get(i));
+            final LatLng latLng = new LatLng(mMapPojos.get(i).getLatitude(), mMapPojos.get(i).getLongitude());
+            final String title = String.valueOf(simplifyEmptyTitle(mMapPojos.get(i).getTitle()));
+            mBoundsBuilder.include(latLng);
+            mClusterManager.addItem(new MarkerItem(latLng, title, snippet));
+
         }
-        mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(mBoundsBuilder.build(), 0));
+        mClusterManager.cluster();
+
+        if (mMapPojos.isEmpty()) {
+            mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(mBoundsBuilder.build(), 10));
+        } else {
+            mMap.moveCamera(CameraUpdateFactory.newLatLng(mCurrentLocation));
+        }
     }
 
     @Override
@@ -323,6 +326,21 @@ public class GoogleMapsFragment extends Fragment
         mPresenter.detachView();
     }
 
+    @Override
+    public boolean onClusterItemClick(MarkerItem markerItem) {
+        if (mCurrentLocation != null) {
+            final String origins = mCurrentLocation.latitude + "," + mCurrentLocation.longitude;
+            mPresenter.getDirections(origins, markerItem.getPosition().latitude
+                    + "," + markerItem.getPosition().longitude);
+        }
+        return false;
+    }
+
+    @Override
+    public void onClusterItemInfoWindowClick(MarkerItem markerItem) {
+        Snackbar.make(getView(), "Info window clicked", Snackbar.LENGTH_SHORT).show();
+    }
+
     private class CustomInfoAdapter implements GoogleMap.InfoWindowAdapter {
 
         private View mWindow;
@@ -341,6 +359,26 @@ public class GoogleMapsFragment extends Fragment
             ((TextView) mWindow.findViewById(R.id.title)).setText(marker.getTitle());
             ((TextView) mWindow.findViewById(R.id.snippet)).setText(marker.getSnippet());
             return mWindow;
+        }
+    }
+
+    private class MyRender extends DefaultClusterRenderer<MarkerItem> {
+
+        public MyRender(Context context, GoogleMap map, ClusterManager<MarkerItem> clusterManager) {
+            super(context, map, clusterManager);
+        }
+
+        @Override
+        protected void onBeforeClusterItemRendered(MarkerItem item, MarkerOptions markerOptions) {
+            super.onBeforeClusterItemRendered(item, markerOptions);
+            markerOptions
+                    .snippet(item.getSnippet())
+                    .title(item.getTitle());
+        }
+
+        @Override
+        protected boolean shouldRenderAsCluster(Cluster cluster) {
+            return cluster.getSize() > 1;
         }
     }
 
